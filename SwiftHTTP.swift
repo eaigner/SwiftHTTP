@@ -88,6 +88,8 @@ class SwiftHTTP {
 			Darwin.close(fd)
 			return (3, "unable to bind socket")
 		}
+        
+        addr.dealloc(1)
 
 		// get the assigned port
 		var outAddr = UnsafeMutablePointer<sockaddr_in>.alloc(1)
@@ -101,6 +103,9 @@ class SwiftHTTP {
 
 		self.port = CFSwapInt16BigToHost(outAddr.memory.sin_port)
 
+        outAddr.dealloc(1)
+        inOutLen.dealloc(1)
+        
 		// listen
 		if Darwin.listen(fd, SOMAXCONN) != 0 {
 			Darwin.close(fd)
@@ -132,9 +137,9 @@ class SwiftHTTP {
 	}
 
 	private func handleRequest(msg: CFHTTPMessage) -> (Request?, Int?) {
-		let method = CFHTTPMessageCopyRequestMethod(msg).takeUnretainedValue() as String
-		let url = CFHTTPMessageCopyRequestURL(msg).takeUnretainedValue()
-		let hdrs = CFHTTPMessageCopyAllHeaderFields(msg).takeUnretainedValue() as NSDictionary
+		let method = CFHTTPMessageCopyRequestMethod(msg).takeRetainedValue() as String
+		let url = CFHTTPMessageCopyRequestURL(msg).takeRetainedValue()
+		let hdrs = CFHTTPMessageCopyAllHeaderFields(msg).takeRetainedValue() as NSDictionary
 		let req = Request(method: method, URL: url, headers: hdrs)
 		var contentLength = 0
 
@@ -153,7 +158,7 @@ class SwiftHTTP {
 
 		let bufLen = 1024*8
 		var data = UnsafeMutablePointer<UInt8>.alloc(bufLen)
-		var httpMsg = CFHTTPMessageCreateEmpty(kCFAllocatorDefault, 1).takeUnretainedValue()
+		var httpMsg = CFHTTPMessageCreateEmpty(kCFAllocatorDefault, 1).takeRetainedValue()
 		var hdrsDone = UnsafeMutablePointer<Int32>.alloc(1)
 		var req : Request?
 		var bodyLen = 0
@@ -172,7 +177,7 @@ class SwiftHTTP {
 				}
 
 				// pass a chunk of data to the handler
-				let chunk = CFHTTPMessageCopyBody(httpMsg).takeUnretainedValue()
+				let chunk = CFHTTPMessageCopyBody(httpMsg).takeRetainedValue()
 				let chunkLen = Int(CFDataGetLength(chunk))
 
 				if chunkLen > 0 {
@@ -193,6 +198,7 @@ class SwiftHTTP {
 		}
         
         data.dealloc(bufLen)
+        hdrsDone.dealloc(1)
 
 		// create a default response
 		let resp = Response()
@@ -204,7 +210,7 @@ class SwiftHTTP {
 		}
 
 		// assemble the HTTP message
-		let respMsg = CFHTTPMessageCreateResponse(nil, resp.status, nil, resp.httpVersion).takeUnretainedValue()
+		let respMsg = CFHTTPMessageCreateResponse(nil, resp.status, nil, resp.httpVersion).takeRetainedValue()
 
 		for (k, v) in resp.headers {
 			CFHTTPMessageSetHeaderFieldValue(respMsg, k, v)
@@ -217,7 +223,7 @@ class SwiftHTTP {
 		}
 
 		// serialize it to the TCP socket
-		let bytes = CFHTTPMessageCopySerializedMessage(respMsg).takeUnretainedValue()
+		let bytes = CFHTTPMessageCopySerializedMessage(respMsg).takeRetainedValue()
 		if Darwin.write(conn, CFDataGetBytePtr(bytes), UInt(CFDataGetLength(bytes))) < 0 {
 			println("error writing to tcp socket")
 		}
