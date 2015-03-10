@@ -173,6 +173,8 @@ class SwiftHTTP {
 				}
 			}
 		}
+        
+        data.dealloc(bufLen)
 
 		// create a default response
 		let resp = Response()
