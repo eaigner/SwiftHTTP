@@ -19,19 +19,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
 		server = SwiftHTTP()
 		server?.headersReceivedHandler = { req in
-			println("headers: \(req.headers)")
+			print("headers: \(req.headers)")
 		}
 		server?.dataAvailableHandler = { req, data in
-			println("received \(data.length) bytes")
+			print("received \(data.length) bytes")
 		}
 		server?.responseHandler = { req, resp in
 			resp.body = "hello from SwiftHTTP".dataUsingEncoding(NSUTF8StringEncoding, allowLossyConversion: false)
 		}
 
-		if let err = server?.listen(port: 3000) {
-			println("could not listen on port 3000: \(err)")
+		if let err = server?.listen(3000) {
+			print("could not listen on port 3000: \(err)")
 		} else {
-			println("listening on port \(server!.port)")
+			print("listening on port \(server!.port)")
 		}
 	}
 

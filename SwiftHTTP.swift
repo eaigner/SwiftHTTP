@@ -77,8 +77,8 @@ class SwiftHTTP {
 		}
 		
 		// bind
-		var addr = UnsafeMutablePointer<sockaddr>.alloc(1)
-		var inAddr = UnsafeMutablePointer<sockaddr_in>(addr)
+		let addr = UnsafeMutablePointer<sockaddr>.alloc(1)
+		let inAddr = UnsafeMutablePointer<sockaddr_in>(addr)
 		inAddr.memory.sin_len = __uint8_t(sizeof(sockaddr_in))
 		inAddr.memory.sin_family = sa_family_t(AF_INET)
 		inAddr.memory.sin_addr.s_addr = CFSwapInt32HostToBig(0)
@@ -92,8 +92,8 @@ class SwiftHTTP {
 		addr.dealloc(1)
 		
 		// get the assigned port
-		var outAddr = UnsafeMutablePointer<sockaddr_in>.alloc(1)
-		var inOutLen = UnsafeMutablePointer<socklen_t>.alloc(1)
+		let outAddr = UnsafeMutablePointer<sockaddr_in>.alloc(1)
+		let inOutLen = UnsafeMutablePointer<socklen_t>.alloc(1)
 		inOutLen.memory = socklen_t(sizeof(sockaddr_in))
 		
 		if Darwin.getsockname(fd, UnsafeMutablePointer<sockaddr>(outAddr), inOutLen) != 0 {
@@ -137,9 +137,9 @@ class SwiftHTTP {
 	}
 	
 	private func handleRequest(msg: CFHTTPMessage) -> (Request?, Int?) {
-		let method = CFHTTPMessageCopyRequestMethod(msg).takeRetainedValue() as String
-		let url = CFHTTPMessageCopyRequestURL(msg).takeRetainedValue()
-		let hdrs = CFHTTPMessageCopyAllHeaderFields(msg).takeRetainedValue() as NSDictionary
+		let method = CFHTTPMessageCopyRequestMethod(msg)!.takeRetainedValue() as String
+		let url = CFHTTPMessageCopyRequestURL(msg)!.takeRetainedValue()
+		let hdrs = CFHTTPMessageCopyAllHeaderFields(msg)!.takeRetainedValue() as NSDictionary
 		let req = Request(method: method, URL: url, headers: hdrs)
 		var contentLength = 0
 		
@@ -157,27 +157,27 @@ class SwiftHTTP {
 		let conn = Darwin.accept(fd, nil, nil)
 		
 		let bufLen = 1024*8
-		var data = UnsafeMutablePointer<UInt8>.alloc(bufLen)
-		var httpMsg = CFHTTPMessageCreateEmpty(kCFAllocatorDefault, 1).takeRetainedValue()
-		var hdrsDone = UnsafeMutablePointer<Int32>.alloc(1)
+		let data = UnsafeMutablePointer<UInt8>.alloc(bufLen)
+		let httpMsg = CFHTTPMessageCreateEmpty(kCFAllocatorDefault, true).takeRetainedValue()
+		let hdrsDone = UnsafeMutablePointer<Int32>.alloc(1)
 		var req : Request?
 		var bodyLen = 0
 		var contentLen : Int?
 		
 		while true {
-			let n = Darwin.read(conn, data, UInt(bufLen))
-			if n <= 0 || CFHTTPMessageAppendBytes(httpMsg, data, n) == 0 {
+			let n = Darwin.read(conn, data, bufLen)
+			if n <= 0 || CFHTTPMessageAppendBytes(httpMsg, data, n) == false {
 				break
 			}
 			
-			if CFHTTPMessageIsHeaderComplete(httpMsg) == 1 {
+			if CFHTTPMessageIsHeaderComplete(httpMsg) == true {
 				// read the headers (once)
 				if OSAtomicCompareAndSwap32Barrier(0, 1, hdrsDone) {
 					(req, contentLen) = handleRequest(httpMsg)
 				}
 				
 				// pass a chunk of data to the handler
-				let chunk = CFHTTPMessageCopyBody(httpMsg).takeRetainedValue()
+				let chunk = CFHTTPMessageCopyBody(httpMsg)!.takeRetainedValue()
 				let chunkLen = Int(CFDataGetLength(chunk))
 				
 				if chunkLen > 0 {
@@ -185,7 +185,8 @@ class SwiftHTTP {
 					if let v = req {
 						dataAvailableHandler?(v, chunk)
 					}
-					CFHTTPMessageSetBody(httpMsg, nil)
+					let emptyString = CFDataCreate(kCFAllocatorDefault, "", 0)
+					CFHTTPMessageSetBody(httpMsg, emptyString)
 				}
 			}
 			
@@ -223,9 +224,9 @@ class SwiftHTTP {
 		}
 		
 		// serialize it to the TCP socket
-		let bytes = CFHTTPMessageCopySerializedMessage(respMsg).takeRetainedValue()
-		if Darwin.write(conn, CFDataGetBytePtr(bytes), UInt(CFDataGetLength(bytes))) < 0 {
-			println("error writing to tcp socket")
+		let bytes = CFHTTPMessageCopySerializedMessage(respMsg)!.takeRetainedValue()
+		if Darwin.write(conn, CFDataGetBytePtr(bytes), CFDataGetLength(bytes)) < 0 {
+			print("error writing to tcp socket")
 		}
 		
 		Darwin.close(conn)
